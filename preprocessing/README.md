@@ -1,93 +1,264 @@
-## ⚙️ ZScan Data Processing Algorithm: Preprocessing Unit
+# ⚙️ Z-Scan Data Processing: Preprocessing Algorithm
 
-This document outlines the **9-step preprocessing algorithm** applied to the raw ZScan data to normalize signals, transform coordinates, and reduce the number of data points for final analysis.
+## Overview
 
----
-
-### **1. Load and Preprocess Data**
-
-The initial step involves loading the raw data and assigning column names.
-
-* **Load Data:** Read the CSV file without headers.
-* **Assign Columns:** Assign the column name **`ca`** to the first column and **`oa`** the second column.
-    * *Initial Data Size:* $12000~\text{rows} \times 2~\text{columns}$.
+This document outlines the comprehensive **9-step preprocessing pipeline** designed to transform raw Z-Scan data into clean, analysis-ready datasets. The algorithm handles everything from raw signal normalization to coordinate transformation and data reduction.
 
 ---
 
-### **2. Normalization of the Original Signal**
+## 📊 Data Flow Summary
 
-The raw signals are normalized using baseline averages.
-
-* **Calculate Means:** Determine the mean value for each signal (`ca` and `oa`) using the **first and last 500 rows**.
-* **Normalize Signals:** Normalize the `ca` and `oa` signals using these calculated means.
-* **Filter Data:** Filter out any rows where normalized values are zero (if any).
-    * *Normalized Data Size:* $12000~\text{rows} \times 4~\text{columns}$.
-
----
-
-### **3. Visualize Original and Normalized Data**
-
-Plots are generated to visually inspect the raw and normalized data, confirming the normalization effect.
-
----
-
-### **4. Identify Region of Interest (ROI)**
-
-This step isolates the region containing the core signal feature (the Z-shaped portion) for precise analysis.
-
-* **Select Subset:** Select a subset of the normalized data that encompasses the entire Z-shaped signal portion. Based on the current data setup, the range between **index 4000 and 7000** is typically effective.
-* **Find Extrema:** Find the index positions of the **maximum and minimum** values of the `normalized_ca` signal within this selected range.
-* **Extract Data:** Extract the data between these extrema to create a temporary DataFrame.
-    * *Temporary Data Size:* $350~\text{rows} \times 2~\text{columns}$.
+| **Phase** | **Step** | **Input** | **Output** | **Description** |
+|-----------|----------|-----------|------------|-----------------|
+| **Phase 1** | 1 | Raw CSV | Initial DataFrame | Load and assign column names |
+| | 2 | Initial DataFrame | Normalized DataFrame | Baseline normalization of signals |
+| | 3 | Normalized DataFrame | Plots | Visual inspection of raw vs normalized |
+| **Phase 2** | 4 | Normalized DataFrame | ROI-extracted data | Isolate the Z-shaped signal region |
+| | 5 | ROI Data | Linear regression params | Extract transformation parameters |
+| | 6 | Normalized DataFrame | Transformed DataFrame | Convert indices to physical positions |
+| | 7 | Transformed DataFrame | Plots | Verify coordinate transformation |
+| **Phase 3** | 8 | Transformed DataFrame | Reduced DataFrame | Block-wise averaging for denoising |
+| | 9 | Reduced DataFrame | Final Filtered Data | Isolate central region for analysis |
 
 ---
 
-### **5. Linear Fit to Extract Transformation Parameters**
+## Phase 1: Data Loading & Normalization
 
-A linear regression determines the index value corresponding to the baseline ($T=1$), which serves as the center point for coordinate transformation.
+### Step 1: Load and Preprocess Data
 
-* **Define Cropping Bounds:** Determine the ROI and add a **10% padding** around this region.
-* **Extract Cropped Data:** Extract: $\text{y} = \text{normalized transmittance}$ (independent variable) and $\text{x} = \text{index values}$ (dependent variable).
-    * These correspond to the columns `mid_data_y` and `mid_data_x` in the code.
-* **Perform Linear Regression:** Fit a straight line: $\text{x} = m \cdot y + b$.
-* **Predict x:** Predict the index value (`x_predict`) where $\text{y} = 1$.
+The initial step loads raw data and assigns meaningful column names.
 
----
+| **Action** | **Details** |
+|------------|-------------|
+| **Load Data** | Read CSV file without headers |
+| **Assign Columns** | First column → `ca` (Closed Aperture) |
+| | Second column → `oa` (Open Aperture) |
+| **Initial Shape** | **12,000 rows × 2 columns** |
 
-### **6. Coordinate Transformation**
-
-The original index values are transformed into physical position coordinates (`x_position` in meters).
-
-* **Define Transformation Function:** Compute the new position:
-    $$\text{x\_position} = (\text{index} - \text{x\_pred}) \cdot 10^{-5}$$
-    (Where `x_pred` is the predicted center from Step 5).
-* **Apply Transformation:** Apply the transformation and add `x_position` as a new column.
-    * *Final Data Size:* $12000~\text{rows} \times 5~\text{columns}$.
+```python
+# Data structure after loading
+df = pd.read_csv(file_path, header=None, names=['ca', 'oa'])
+```
 
 ---
 
-### **7. Re-Visualize with Transformed Coordinates**
+### Step 2: Normalization of the Original Signal
 
-Generate new plots using the transformed $\text{Position x (in m)}$ on the x-axis.
+Raw signals are normalized using baseline averages to remove systematic variations.
+
+| **Action** | **Details** |
+|------------|-------------|
+| **Calculate Baseline Means** | For each signal (`ca` and `oa`) |
+| | Use the **first 300 and last 300 rows** |
+| | Compute: `mean_ca`, `mean_oa`, `mean_ca/oa` |
+| **Normalize Signals** | `normalized_ca = ca / mean_ca` |
+| | `normalized_oa = oa / mean_oa` |
+| | `normalized_ca/oa = (ca/oa) / mean_ca/oa` |
+| **Filter Data** | Remove rows where normalized values are zero |
+| **Shape After Normalization** | **12,000 rows × 4 columns** |
+
+**Columns Added:**
+- `normalized_ca`
+- `normalized_oa`
+- `normalized_ca/oa`
 
 ---
 
-### **8. Reduce Data Points Using Block-Wise Aggregation**
+### Step 3: Visualize Original and Normalized Data
 
-The dataset is reduced by aggregating data points into chunks for a cleaner analysis.
+Plots are generated to visually confirm the normalization process.
 
-* **Define Aggregation Function (`reduce_data`):**
-    * Group data into chunks (e.g., every **10 rows**).
-    * Compute the **mean and standard deviation** of selected columns within each group.
-* **Apply Aggregation:** Apply the function to create a reduced DataFrame (`reduced_df`).
-    * *Reduced Data Size:* $1200~\text{rows} \times 5~\text{columns}$. (Containing columns like `normalized_ca_mean`, `normalized_ca_std`, etc.)
+| **Plot Type** | **Purpose** |
+|---------------|-------------|
+| Raw signals (`ca`, `oa`) | Inspect raw data quality |
+| Normalized signals | Verify baseline correction |
+| Ratio plot (`ca/oa`) | Check signal-to-noise ratio |
 
 ---
 
-### **9. Filter Region of Interest (Final)**
+## Phase 2: Coordinate Transformation
 
-The reduced data is filtered to isolate the central region for final plotting and fitting.
+### Step 4: Identify Region of Interest (ROI)
 
-* **Filter Data:** Further filter the reduced data (`reduced_df`) to a specific range, e.g., **$-0.03 < \text{x} < 0.03$**.
-    * *Final Filtered Data Size:* $600~\text{rows} \times 5~\text{columns}$.
-* **Plot Final Signals:** Plot the mean signals within this final window.
+Isolates the region containing the Z-shaped signal feature for precise analysis.
+
+| **Action** | **Details** |
+|------------|-------------|
+| **Select Subset** | Extract rows **4000–7000** from `normalized_ca/oa` |
+| **Find Extrema** | Locate `min` and `max` positions within subset |
+| | Record `min_pos`, `max_pos` (original indices) |
+| **Extract Data** | Get all data between `min_pos` and `max_pos` |
+| **ROI Shape** | **~350 rows × 2 columns** |
+
+```
+Data: 0 ──────────────────── 4000 ── 7000 ────────────── 12000
+                              ├── ROI ──┤
+                                  ↓
+                         z-shaped feature region
+```
+
+---
+
+### Step 5: Linear Fit to Extract Transformation Parameters
+
+Linear regression determines the index value where baseline transmittance = 1 (T=1).
+
+| **Action** | **Details** |
+|------------|-------------|
+| **Define Cropping** | Add **10% padding** to ROI boundaries |
+| **Extract Variables** | `y` = normalized transmittance (independent) |
+| | `x` = index values (dependent) |
+| **Linear Regression** | Fit: `x = m·y + b` |
+| **Predict x** | Calculate `x_pred` where `y = 1` |
+| **Formula** | `x_pred = (1 - intercept) / slope` |
+
+**Purpose:** `x_pred` serves as the center point for coordinate transformation.
+
+---
+
+### Step 6: Coordinate Transformation
+
+Original index values are converted to physical position coordinates.
+
+| **Action** | **Details** |
+|------------|-------------|
+| **Define Function** | `x_position = (index - x_pred) × 10⁻⁵` |
+| **Apply Transformation** | Transform all indices to positions |
+| **Add Column** | Add `z` column to DataFrame |
+| **Shape** | **12,000 rows × 5 columns** |
+
+**Physical Interpretation:**
+- `x_pred` → baseline position (T=1)
+- Positive `x_position` → positions after beam focus
+- Negative `x_position` → positions before beam focus
+
+---
+
+### Step 7: Visualize with Transformed Coordinates
+
+Generate plots using physical `z` coordinates (in meters).
+
+| **Plot Type** | **Details** |
+|---------------|-------------|
+| X-axis | `z` position (meters) |
+| Y-axis | Normalized transmittance (`normalized_ca/oa`) |
+| Verification | Confirm correct centering and scaling |
+
+---
+
+## Phase 3: Data Reduction & Filtering
+
+### Step 8: Reduce Data Points Using Block-Wise Aggregation
+
+Dataset is downsampled by grouping and averaging to reduce noise.
+
+| **Action** | **Details** |
+|------------|-------------|
+| **Grouping** | Combine every **10 rows** into a group |
+| **Aggregation** | For each group, compute: |
+| | • **Mean** of all columns |
+| | • **Standard deviation** of signal columns |
+| **Reduced Shape** | **1,200 rows × 5 columns** |
+
+**Formula:**
+```python
+reduced_df = smooth_signal(df_z, group_size=10, 
+                           x_col='z', 
+                           y_cols=['normalized_ca', 'normalized_oa', 'normalized_ca/oa'])
+```
+
+**Columns in Reduced DataFrame:**
+| Column | Description |
+|--------|-------------|
+| `z` | Mean position in each group |
+| `normalized_ca_mean` | Mean CA signal |
+| `normalized_ca_std` | Standard deviation (error) |
+| `normalized_oa_mean` | Mean OA signal |
+| `normalized_oa_std` | Standard deviation (error) |
+| `normalized_ca/oa_mean` | Mean ratio signal |
+| `normalized_ca/oa_std` | Standard deviation (error) |
+
+---
+
+### Step 9: Filter Region of Interest (Final)
+
+Isolate the central region for final plotting and curve fitting.
+
+| **Action** | **Details** |
+|------------|-------------|
+| **Range Selection** | Filter where: `-0.03 < z < 0.03` (meters) |
+| **Final Shape** | **~600 rows × 5 columns** |
+| **Plot Final Signals** | Generate final plots with error bars |
+
+**Purpose:** This filtered dataset is used for:
+- Theoretical curve fitting
+- Parameter extraction (`Δφ`, `Zpv`, `Tpv`)
+- Statistical analysis
+
+---
+
+## 📈 Final Data Characteristics
+
+| **Parameter** | **Value** | **Unit** |
+|---------------|-----------|----------|
+| Original rows | 12,000 | rows |
+| Reduced rows | 1,200 | rows |
+| Filtered rows | ~600 | rows |
+| Z-range | ±0.03 | meters |
+| Group size | 10 | rows/group |
+| Error bars | Standard deviation | - |
+
+---
+
+## 🔧 Code Implementation
+
+The preprocessing pipeline is implemented in `process_single_file()` function:
+
+```python
+def process_single_file(df, file_path, w0, z0=0.001, 
+                        sample_length=None, group_size=10, 
+                        z_range=(-0.03, 0.03)):
+    """
+    Complete preprocessing pipeline for a single Z-scan file.
+    """
+    # Step 1-2: Load & Normalize
+    num, power_mW, I0 = get_power_and_irradiance(file_path, w0)
+    df_norm = normalize_ca_oa(df)
+    
+    # Step 4-6: Coordinate Transformation
+    df_z, x_pred = get_Z(df_norm)
+    
+    # Step 8: Data Reduction
+    reduced_df = smooth_signal(df_z, group_size, 'z', 
+                               ['normalized_ca', 'normalized_oa', 'normalized_ca/oa'])
+    
+    # Step 9: Final Filtering
+    processed_df = select_range(reduced_df, 'z', z_range[0], z_range[1])
+    
+    return processed_df
+```
+
+---
+
+## ✅ Validation Checkpoints
+
+| **Checkpoint** | **Validation** | **Action if Failed** |
+|----------------|----------------|---------------------|
+| Step 2 | Normalized signals ≈ 1 at baseline | Adjust `head_tail_size` |
+| Step 4 | ROI contains complete Z-shape | Adjust `start_idx`, `end_idx` |
+| Step 5 | `x_pred` within data range | Check padding percentage |
+| Step 8 | Reduced data retains signal shape | Adjust `group_size` |
+| Step 9 | At least 100 points remain | Widen `z_range` |
+
+---
+
+## 📋 Summary
+
+The preprocessing algorithm transforms raw 12,000-row datasets into clean, analysis-ready data through:
+
+1. **Normalization** – Remove baseline variations
+2. **Coordinate Transformation** – Convert indices to physical positions
+3. **Data Reduction** – Denoise via block-wise averaging
+4. **Filtering** – Isolate central region for fitting
+
+**Result:** ~600 rows of high-quality data with error estimates, ready for theoretical curve fitting and parameter extraction.
