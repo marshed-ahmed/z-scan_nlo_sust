@@ -87,11 +87,15 @@ ZScan-Data-Processing/
 ├── 📂 preprocessing/                       # Documentation & algorithm description
 │   ├── ZScan Data Processing.pdf           # Comprehensive algorithm guide
 │   └── ZScan_Data_Processing_Algorithm.md  # Markdown version of the algorithm
+|   └──position.ipynb                       # Jupyter notebook version of preprocessing algorithm
+|   └──position_001.ipynb                   # Another notebook version preprocessing algorithm (ignore it)
 │
 ├── 📂 Visual Assets/                       # Visual resources
 │   ├── ZScan_schematic.png                 # Experimental setup diagram
-│   ├── ZScan_curve_example.png             # Example Z-scan curve
-│   └── comparison_plots.png                # Before/after processing comparison
+│   ├── ca_zscan.png                        # Example Z-scan curve
+│   └──
+│   └──
+│   └──
 │
 ├── 📄 LICENSE                              # GNU General Public License v3
 └── 📄 README.md                            # This file
