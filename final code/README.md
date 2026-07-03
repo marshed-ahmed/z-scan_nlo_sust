@@ -780,5 +780,3 @@ I₀ = P / (π·w₀²)
 | Open PDF | `evince processed/{brand}/{brand}_analysis.pdf` |
 
 ---
-
-**Happy Analyzing! 🚀**
